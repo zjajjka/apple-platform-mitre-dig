@@ -14,22 +14,22 @@ final class ContentURLTests: XCTestCase {
         try "TOKEN-OUTSIDE-DOCS".write(to: secretFile, atomically: true, encoding: .utf8)
         defer { try? fm.removeItem(at: base) }
 
-        // Same shape as HTTP GET /../../Library/secret.txt after percent-decode
-        let attack = "/../../Library/secret.txt"
+        // HTTP GET /../Library/secret.txt after percent-decode (sibling of Documents)
+        let attack = "/../Library/secret.txt"
         let resolved = ContentURL.resolve(documentRoot: docs, path: attack).standardizedFileURL
 
         XCTAssertFalse(
             resolved.path.hasPrefix(docs.standardizedFileURL.path + "/") || resolved.path == docs.standardizedFileURL.path,
             "vulnerable resolve must escape Documents; got \(resolved.path)"
         )
-        XCTAssertTrue(fm.fileExists(atPath: resolved.path), "escaped path should hit planted secret: \(resolved.path)")
+        XCTAssertEqual(resolved.standardizedFileURL, secretFile.standardizedFileURL)
         let body = try String(contentsOf: resolved, encoding: .utf8)
         XCTAssertEqual(body, "TOKEN-OUTSIDE-DOCS")
     }
 
     func testSafeResolverRejectsEscape() {
         let docs = URL(fileURLWithPath: "/var/tmp/Documents", isDirectory: true)
-        XCTAssertNil(ContentURL.resolveSafe(documentRoot: docs, path: "/../../Library/secret.txt"))
+        XCTAssertNil(ContentURL.resolveSafe(documentRoot: docs, path: "/../Library/secret.txt"))
         let ok = ContentURL.resolveSafe(documentRoot: docs, path: "/notes/a.txt")
         XCTAssertEqual(ok?.lastPathComponent, "a.txt")
     }

@@ -56,14 +56,18 @@ jobs:
       - name: fetch IINA 1.4.4 and audit allowlist
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch 1.4.4 https://github.com/iina/iina.git /tmp/iina
+          git clone --depth 1 --branch v1.4.4 https://github.com/iina/iina.git /tmp/iina
           FILE=/tmp/iina/iina/AppDelegate.swift
-          # Extract allowlist block
-          awk '/safeMPVOptions = Set/,/^\]\)/' "$FILE" > /tmp/allowlist.txt
-          echo "## IINA 1.4.4 safeMPVOptions" >> "$GITHUB_STEP_SUMMARY"
+          # Prefer AppDelegate; fall back to AppData if allowlist moved
+          if ! grep -q 'safeMPVOptions' "$FILE"; then
+            FILE=/tmp/iina/iina/AppData.swift
+          fi
+          awk '/safeMPVOptions/,/^[[:space:]]*\]\)/' "$FILE" > /tmp/allowlist.txt
+          echo "## IINA v1.4.4 safeMPVOptions ($FILE)" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/allowlist.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          test -s /tmp/allowlist.txt
           if grep -E '"log-file"|"input-commands"|"script"' /tmp/allowlist.txt; then
             echo "Dangerous option still allowlisted" >&2
             exit 1
