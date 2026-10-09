@@ -19,7 +19,7 @@ jobs:
         if: success()
         run: |
           echo "## Path escape PoC" >> "$GITHUB_STEP_SUMMARY"
-          echo "Reproduced iTransfer-style contentURL traversal on macOS-15 (Foundation same as iOS)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproduced iTransfer contentURL + SwiftyUploader concat + GCDWebUploader filename traversal on macOS-15." >> "$GITHUB_STEP_SUMMARY"
 
   itransfer-static-audit:
     name: iTransfer auth dead-code audit
