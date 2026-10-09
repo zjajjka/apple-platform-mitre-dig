@@ -1,0 +1,75 @@
+name: macos-dig
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  path-escape-swift:
+    name: iTransfer path-escape (Swift PM)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: PathEscapeDemo
+        run: swift test -v
+      - name: summarize
+        if: success()
+        run: |
+          echo "## Path escape PoC" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproduced iTransfer-style contentURL traversal on macOS-15 (Foundation same as iOS)." >> "$GITHUB_STEP_SUMMARY"
+
+  itransfer-static-audit:
+    name: iTransfer auth dead-code audit
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: clone iFTPServer
+        run: |
+          git clone --depth 1 https://github.com/isaveall/iFTPServer.git /tmp/iFTPServer
+      - name: prove servers ignore ServerConfig auth
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/iFTPServer
+          echo "## iTransfer static audit" >> "$GITHUB_STEP_SUMMARY"
+          # HTTP/FTP services must not reference account/whitelist/password config
+          if rg -n 'allowAnonymous|whitelist|blacklist|accounts|passwordForUser|Authorization' \
+              "$ROOT/iTransfer/Services/HTTPServerService.swift" \
+              "$ROOT/iTransfer/Services/FTPServerService.swift"; then
+            echo "Unexpected auth reference in server services" >&2
+            exit 1
+          fi
+          echo "HTTPServerService/FTPServerService contain no auth/whitelist hooks." >> "$GITHUB_STEP_SUMMARY"
+          rg -n 'Anonymous user logged in|allowAnonymousReadOnly|settings_accounts' "$ROOT" \
+            | tee /tmp/audit.txt
+          grep -q 'Anonymous user logged in' /tmp/audit.txt
+          grep -q 'allowAnonymousReadOnly' /tmp/audit.txt
+          echo "FTP always anonymous; ServerConfig.allowAnonymousReadOnly unused by servers." >> "$GITHUB_STEP_SUMMARY"
+
+  iina-allowlist-audit:
+    name: IINA 1.4.4 URL-scheme allowlist audit
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: fetch IINA 1.4.4 and audit allowlist
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch 1.4.4 https://github.com/iina/iina.git /tmp/iina
+          FILE=/tmp/iina/iina/AppDelegate.swift
+          # Extract allowlist block
+          awk '/safeMPVOptions = Set/,/^\]\)/' "$FILE" > /tmp/allowlist.txt
+          echo "## IINA 1.4.4 safeMPVOptions" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/allowlist.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          if grep -E '"log-file"|"input-commands"|"script"' /tmp/allowlist.txt; then
+            echo "Dangerous option still allowlisted" >&2
+            exit 1
+          fi
+          for opt in tls-verify http-header-fields cookies; do
+            grep -q "\"$opt\"" /tmp/allowlist.txt
+          done
+          echo "Blocked: log-file, input-commands, script." >> "$GITHUB_STEP_SUMMARY"
+          echo "Still allowlisted (residual dig): tls-verify, http-header-fields, cookies." >> "$GITHUB_STEP_SUMMARY"
