@@ -35,14 +35,14 @@ jobs:
           ROOT=/tmp/iFTPServer
           echo "## iTransfer static audit" >> "$GITHUB_STEP_SUMMARY"
           # HTTP/FTP services must not reference account/whitelist/password config
-          if rg -n 'allowAnonymous|whitelist|blacklist|accounts|passwordForUser|Authorization' \
+          if grep -REn 'allowAnonymous|whitelist|blacklist|accounts|passwordForUser|Authorization' \
               "$ROOT/iTransfer/Services/HTTPServerService.swift" \
               "$ROOT/iTransfer/Services/FTPServerService.swift"; then
             echo "Unexpected auth reference in server services" >&2
             exit 1
           fi
           echo "HTTPServerService/FTPServerService contain no auth/whitelist hooks." >> "$GITHUB_STEP_SUMMARY"
-          rg -n 'Anonymous user logged in|allowAnonymousReadOnly|settings_accounts' "$ROOT" \
+          grep -REn 'Anonymous user logged in|allowAnonymousReadOnly|settings_accounts' "$ROOT/iTransfer" \
             | tee /tmp/audit.txt
           grep -q 'Anonymous user logged in' /tmp/audit.txt
           grep -q 'allowAnonymousReadOnly' /tmp/audit.txt
